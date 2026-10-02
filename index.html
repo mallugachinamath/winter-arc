@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Winter Arc Dashboard | Ghost Mode</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        ghost: {
+                            950: '#050505',
+                            900: '#09090b',
+                            800: '#18181b',
+                            700: '#27272a',
+                            600: '#3f3f46',
+                            accent: '#a855f7',
+                            accentHover: '#c084fc',
+                            green: '#22c55e'
+                        }
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.3s ease-out forwards',
+                        'pulse-glow': 'pulseGlow 2s infinite'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        },
+                        pulseGlow: {
+                            '0%, 100%': { boxShadow: '0 0 10px rgba(168, 85, 247, 0.4)' },
+                            '50%': { boxShadow: '0 0 20px rgba(168, 85, 247, 0.8)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { 
+            background-color: #050505; 
+            color: #f4f4f5; 
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a855f7; }
+        
+        .checkbox-custom:checked + div {
+            background-color: #a855f7; border-color: #a855f7; box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+        }
+        .checkbox-custom:checked + div svg { opacity: 1; }
+        
+        .nav-btn.active { background-color: rgba(168, 85, 247, 0.1); color: #a855f7; border-left: 3px solid #a855f7; }
+        
+        .strict-mode-active #sidebar { transform: translateX(-100%); }
+        .strict-mode-active main { margin-left: 0; width: 100vw; }
+        
+        /* GitHub Heatmap Mock Styles */
+        .commit-box { width: 12px; height: 12px; border-radius: 2px; background-color: #27272a; }
+        .commit-box.lvl-1 { background-color: #4c1d95; }
+        .commit-box.lvl-2 { background-color: #7e22ce; }
+        .commit-box.lvl-3 { background-color: #a855f7; }
+        .commit-box.lvl-4 { background-color: #d8b4fe; }
+    </style>
+</head>
+<body class="antialiased flex h-screen w-full transition-all duration-500" id="app-body">
+
+    <!-- Auth Overlay -->
+    <div id="auth-overlay" class="fixed inset-0 bg-ghost-950 z-50 flex flex-col items-center justify-center transition-opacity duration-500">
+        <i data-lucide="moon" class="w-12 h-12 text-ghost-accent animate-pulse mb-4"></i>
+        <h2 class="text-xl font-bold tracking-widest text-ghost-accent uppercase">Ghost Mode Sync</h2>
+    </div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-ghost-900 border-r border-ghost-700 flex flex-col h-full shrink-0 z-20 transition-transform duration-300 fixed md:relative -translate-x-full md:translate-x-0">
+        <div class="p-6 border-b border-ghost-700 flex items-center gap-3">
+            <i data-lucide="moon" class="w-6 h-6 text-ghost-accent drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]"></i>
+            <h1 class="font-bold tracking-widest uppercase text-white">Winter Arc</h1>
+        </div>
+        
+        <nav class="flex-1 py-4 space-y-1 overflow-y-auto">
+            <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-btn active w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all text-gray-400 hover:text-gray-200">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i> Dashboard
+            </button>
+            <button onclick="switchView('schedule')" id="nav-schedule" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all text-gray-400 hover:text-gray-200">
+                <i data-lucide="list-todo" class="w-5 h-5"></i> Daily Protocol
+            </button>
+            <button onclick="switchView('timer')" id="nav-timer" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all text-gray-400 hover:text-gray-200">
+                <i data-lucide="timer" class="w-5 h-5"></i> Deep Work
+            </button>
+            <button onclick="switchView('journal')" id="nav-journal" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all text-gray-400 hover:text-gray-200">
+                <i data-lucide="book-open" class="w-5 h-5"></i> Journal & Calendar
+            </button>
+            <button onclick="switchView('analytics')" id="nav-analytics" class="nav-btn w-full flex items-center gap-3 px-6 py-3 text-sm font-medium transition-all text-gray-400 hover:text-gray-200">
+                <i data-lucide="bar-chart-2" class="w-5 h-5"></i> Analytics
+            </button>
+        </nav>
+        
+        <div class="p-4 border-t border-ghost-700">
+            <div class="text-xs text-gray-500 mb-1">Authenticated as</div>
+            <div id="user-id-display" class="text-[10px] text-gray-400 font-mono truncate bg-ghost-950 p-2 rounded border border-ghost-800">...</div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full relative overflow-hidden transition-all duration-300">
+        
+        <!-- Mobile Header -->
+        <header class="h-14 border-b border-ghost-700 bg-ghost-900 flex items-center justify-between px-4 md:hidden shrink-0">
+            <div class="flex items-center gap-2">
+                <i data-lucide="moon" class="w-5 h-5 text-ghost-accent"></i>
+                <span class="font-bold text-sm tracking-widest uppercase">Ghost Mode</span>
+            </div>
+            <button onclick="document.getElementById('sidebar').classList.toggle('-translate-x-full')" class="text-gray-400">
+                <i data-lucide="menu" class="w-6 h-6"></i>
+            </button>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6 md:p-10 relative">
+            
+            <!-- TAB 1: Dashboard -->
+            <section id="view-dashboard" class="view-section block animate-fade-in max-w-5xl mx-auto space-y-6">
+                <div class="flex justify-between items-end mb-8">
+                    <div>
+                        <h2 class="text-3xl font-bold text-white mb-1">Winter Arc Headquarters</h2>
+                        <p class="text-gray-400">Current Day: <span id="dash-date" class="text-ghost-accent font-medium"></span></p>
+                    </div>
+                    <div class="text-right hidden sm:block">
+                        <div class="text-sm text-gray-500 uppercase tracking-widest mb-1">Current Streak</div>
+                        <div class="text-3xl font-black text-ghost-accent flex items-center gap-2 justify-end">
+                            <i data-lucide="flame" class="w-6 h-6"></i> <span id="dash-streak">0</span> Days
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- GitHub Graph Mock -->
+                    <div class="bg-ghost-900 border border-ghost-700 rounded-xl p-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-white flex items-center gap-2">
+                                <i data-lucide="github" class="w-5 h-5"></i> Commits (Ghost Mode)
+                            </h3>
+                            <span class="text-xs bg-ghost-800 text-gray-400 px-2 py-1 rounded">Past 90 Days</span>
+                        </div>
+                        <div class="flex flex-wrap gap-1" id="github-mock">
+                            <!-- Injected by JS -->
+                        </div>
+                    </div>
+
+                    <!-- LeetCode Stats -->
+                    <div class="bg-ghost-900 border border-ghost-700 rounded-xl p-6 flex flex-col justify-between">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-white flex items-center gap-2">
+                                <i data-lucide="code" class="w-5 h-5 text-yellow-500"></i> LeetCode Solved
+                            </h3>
+                        </div>
+                        <div class="flex items-center justify-center gap-8 py-4">
+                            <div class="relative w-24 h-24">
+                                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                                    <path class="text-ghost-800" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" />
+                                    <path class="text-yellow-500" stroke-dasharray="60, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3" />
+                                </svg>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span class="text-xl font-bold text-white">142</span>
+                                </div>
+                            </div>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-green-500"></div><span class="text-gray-400">Easy: <span class="text-white">65</span></span></div>
+                                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-yellow-500"></div><span class="text-gray-400">Med: <span class="text-white">70</span></span></div>
+                                <div class="flex items-center gap-2"><div class="w-2 h-2 rounded-full bg-red-500"></div><span class="text-gray-400">Hard: <span class="text-white">7</span></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: Schedule -->
+            <section id="view-schedule" class="view-section hidden animate-fade-in max-w-3xl mx-auto">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-white mb-2">Daily Protocol</h2>
+                    <div class="w-full h-2 bg-ghost-900 rounded-full overflow-hidden border border-ghost-700">
+                        <div id="progress-bar" class="h-full bg-ghost-accent w-0 transition-all duration-700"></div>
+                    </div>
+                </div>
+                <div id="schedule-list" class="space-y-3">
+                    <!-- Injected via JS -->
+                </div>
+            </section>
+
+            <!-- TAB 3: Timer -->
+            <section id="view-timer" class="view-section hidden animate-fade-in max-w-2xl mx-auto text-center pt-10">
+                <h2 class="text-2xl font-bold text-white mb-2">Deep Work Focus</h2>
+                <p class="text-gray-400 mb-10">3:00 PM to 5:30 PM Block</p>
+                
+                <div class="relative w-72 h-72 mx-auto mb-10 flex items-center justify-center bg-ghost-900 rounded-full border-[8px] border-ghost-800 shadow-[0_0_50px_rgba(0,0,0,0.5)]">
+                    <div id="timer-display" class="text-6xl font-black tracking-tighter text-white tabular-nums">02:30:00</div>
+                    <svg class="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                        <circle id="timer-ring" cx="50" cy="50" r="46" fill="none" stroke="#a855f7" stroke-width="4" stroke-dasharray="289" stroke-dashoffset="0" class="transition-all duration-1000 ease-linear"></circle>
+                    </svg>
+                </div>
+
+                <div class="flex justify-center gap-4 mb-8">
+                    <button id="btn-timer-play" onclick="toggleTimer()" class="w-16 h-16 rounded-full bg-ghost-accent text-white flex items-center justify-center hover:bg-ghost-accentHover transition-colors shadow-lg shadow-ghost-accent/20">
+                        <i data-lucide="play" class="w-8 h-8 ml-1"></i>
+                    </button>
+                    <button onclick="resetTimer()" class="w-16 h-16 rounded-full bg-ghost-800 text-gray-400 flex items-center justify-center hover:bg-ghost-700 border border-ghost-700 transition-colors">
+                        <i data-lucide="rotate-ccw" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <div class="bg-ghost-900 border border-ghost-700 rounded-xl p-4 inline-flex items-center gap-4">
+                    <span class="text-sm font-medium text-gray-300">Strict Mode (Hides UI)</span>
+                    <button id="btn-strict" onclick="toggleStrictMode()" class="relative inline-flex h-6 w-11 items-center rounded-full bg-ghost-700 transition-colors">
+                        <span id="strict-knob" class="inline-block h-4 w-4 translate-x-1 rounded-full bg-white transition-transform"></span>
+                    </button>
+                </div>
+                
+                <div id="strict-overlay-msg" class="hidden mt-8 text-ghost-accent animate-pulse text-sm tracking-widest uppercase">
+                    Strict Mode Active - Focus!
+                </div>
+            </section>
+
+            <!-- TAB 4: Journal & Calendar -->
+            <section id="view-journal" class="view-section hidden animate-fade-in max-w-5xl mx-auto space-y-6">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-8rem)]">
+                    
+                    <!-- Calendar -->
+                    <div class="lg:col-span-1 bg-ghost-900 border border-ghost-700 rounded-xl p-5 flex flex-col">
+                        <h3 class="font-bold text-white mb-4 flex items-center gap-2">
+                            <i data-lucide="calendar" class="w-5 h-5 text-ghost-accent"></i> November
+                        </h3>
+                        <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-500 mb-2">
+                            <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 flex-1" id="calendar-grid">
+                            <!-- Injected via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Journal -->
+                    <div class="lg:col-span-2 bg-ghost-900 border border-ghost-700 rounded-xl p-5 flex flex-col relative">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-white flex items-center gap-2">
+                                <i data-lucide="pen-tool" class="w-5 h-5 text-ghost-accent"></i> Reflection
+                            </h3>
+                            <span id="journal-date-label" class="text-sm text-gray-400">Today</span>
+                        </div>
+                        <textarea id="journal-text" class="flex-1 w-full bg-ghost-950 border border-ghost-700 rounded-lg p-4 text-gray-300 focus:outline-none focus:border-ghost-accent resize-none font-mono text-sm leading-relaxed" placeholder="Document your deep work sessions, mindset, and challenges..."></textarea>
+                        
+                        <div class="flex justify-between items-center mt-4">
+                            <span id="journal-status" class="text-xs text-ghost-green opacity-0 transition-opacity">Saved to cloud</span>
+                            <button onclick="saveJournal()" class="bg-ghost-accent hover:bg-ghost-accentHover text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors">
+                                Save Entry
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: Analytics -->
+            <section id="view-analytics" class="view-section hidden animate-fade-in max-w-4xl mx-auto h-[calc(100vh-8rem)] flex flex-col">
+                <h2 class="text-2xl font-bold text-white mb-6">Habit Analytics</h2>
+                <div class="bg-ghost-900 border border-ghost-700 rounded-xl p-6 flex-1 flex flex-col">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-gray-400 text-sm uppercase tracking-widest">Completion Rate (%)</h3>
+                        <select class="bg-ghost-950 border border-ghost-700 text-sm text-gray-300 rounded px-3 py-1 outline-none">
+                            <option>Last 7 Days</option>
+                            <option>Last 30 Days</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 relative w-full h-full">
+                        <canvas id="habitChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'winter-arc-advanced';
+        const firebaseConfigStr = typeof __firebase_config !== 'undefined' ? __firebase_config : '{}';
+        
+        let app, auth, db, currentUser = null;
+        let todayStr = new Date().toISOString().split('T')[0];
+
+        // Core Data Definition
+        const SCHEDULE = [
+            { id: "t1", time: "5:30 AM", title: "Wake & Hydrate", desc: "No phone. Plan the day." },
+            { id: "t2", time: "6:00 AM", title: "Physical Training", desc: "Morning workout." },
+            { id: "t3", time: "8:00 AM", title: "Academic Classes", desc: "Focus and active learning." },
+            { id: "t4", time: "2:00 PM", title: "Reset", desc: "Lunch and decompression." },
+            { id: "t5", time: "3:00 PM", title: "Deep Work", desc: "Uninterrupted study block." },
+            { id: "t6", time: "5:30 PM", title: "Active Break", desc: "Hit 10k steps." },
+            { id: "t7", time: "6:30 PM", title: "Routine & Fuel", desc: "Organize space, dinner prep." },
+            { id: "t8", time: "7:30 PM", title: "Dinner & Free Time", desc: "Deactivate Ghost Mode." },
+            { id: "t9", time: "9:00 PM", title: "LeetCode Practice", desc: "1-2 algorithms. Blue light filter." },
+            { id: "t10", time: "10:00 PM", title: "Recovery", desc: "Lights out. Secure 7.5h sleep." }
+        ];
+
+        let state = {
+            schedule: {},
+            journal: "",
+            streak: 0
+        };
+        
+        let saveTimeout = null;
+        let chartInstance = null;
+
+        // Init
+        document.getElementById('dash-date').innerText = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        lucide.createIcons();
+        
+        initLocalState();
+        renderSchedule();
+        generateMockGitHub();
+        generateCalendar();
+        initChart();
+        initFirebase();
+
+        async function initFirebase() {
+            try {
+                const config = JSON.parse(firebaseConfigStr);
+                if(Object.keys(config).length > 0) {
+                    app = initializeApp(config);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+                }
+            } catch(e) { console.error("Firebase init err"); return; }
+
+            if (!auth) { hideOverlay(); return; }
+
+            try {
+                const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (token) await signInWithCustomToken(auth, token);
+                else await signInAnonymously(auth);
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        document.getElementById('user-id-display').innerText = user.uid;
+                        setupDataListener();
+                        hideOverlay();
+                    }
+                });
+            } catch (error) {
+                console.error("Auth failed:", error);
+                hideOverlay();
+            }
+        }
+
+        function hideOverlay() {
+            const el = document.getElementById('auth-overlay');
+            el.classList.add('opacity-0');
+            setTimeout(() => el.classList.add('hidden'), 500);
+        }
+
+        function setupDataListener() {
+            if (!currentUser || !db) return;
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'dashboard', 'main');
+            
+            onSnapshot(docRef, (docSnap) => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    state.schedule = data.schedule || state.schedule;
+                    state.journal = data.journal || "";
+                    state.streak = data.streak || 12; // Mock starting streak
+                    updateUI();
+                } else {
+                    state.streak = 12; // Default start
+                    triggerSave();
+                }
+            }, (error) => console.error("Sync error:", error));
+        }
+
+        function triggerSave() {
+            if(saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                if (!currentUser || !db) return;
+                try {
+                    await setDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'dashboard', 'main'), state, { merge: true });
+                } catch(e) {}
+            }, 1000);
+        }
+
+        function initLocalState() {
+            SCHEDULE.forEach(t => state.schedule[t.id] = false);
+        }
+
+        function updateUI() {
+            updateScheduleUI();
+            document.getElementById('dash-streak').innerText = state.streak;
+            const jta = document.getElementById('journal-text');
+            if (document.activeElement !== jta) jta.value = state.journal;
+        }
+
+        function renderSchedule() {
+            const list = document.getElementById('schedule-list');
+            list.innerHTML = '';
+            SCHEDULE.forEach(task => {
+                const div = document.createElement('div');
+                div.className = `group bg-ghost-900 border border-ghost-700 rounded-xl p-4 flex items-center gap-4 transition-all duration-300`;
+                div.id = `sch-wrap-${task.id}`;
+                
+                div.innerHTML = `
+                    <div class="relative flex-shrink-0">
+                        <input type="checkbox" id="sch-${task.id}" class="checkbox-custom opacity-0 absolute inset-0 w-full h-full cursor-pointer z-10">
+                        <div class="w-6 h-6 rounded-md border-2 border-ghost-600 flex items-center justify-center bg-ghost-950 transition-colors">
+                            <svg class="w-4 h-4 text-white opacity-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                    </div>
+                    <div class="flex-1 transition-opacity">
+                        <div class="flex justify-between items-center mb-0.5">
+                            <h3 class="font-semibold text-gray-200" id="sch-title-${task.id}">${task.title}</h3>
+                            <span class="text-xs font-bold text-ghost-accent bg-ghost-950 px-2 py-0.5 rounded border border-ghost-700/50">${task.time}</span>
+                        </div>
+                        <p class="text-xs text-gray-500">${task.desc}</p>
+                    </div>
+                `;
+
+                div.querySelector('input').addEventListener('change', (e) => {
+                    state.schedule[task.id] = e.target.checked;
+                    updateScheduleUI();
+                    triggerSave();
+                });
+                list.appendChild(div);
+            });
+            updateScheduleUI();
+        }
+
+        function updateScheduleUI() {
+            let done = 0;
+            SCHEDULE.forEach(t => {
+                const isChecked = state.schedule[t.id];
+                if(isChecked) done++;
+                const chk = document.getElementById(`sch-${t.id}`);
+                const title = document.getElementById(`sch-title-${t.id}`);
+                const wrap = document.getElementById(`sch-wrap-${t.id}`);
+                if(chk) {
+                    chk.checked = isChecked;
+                    if(isChecked) {
+                        title.classList.add('line-through', 'opacity-50');
+                        wrap.classList.add('bg-ghost-900/50', 'border-ghost-800');
+                    } else {
+                        title.classList.remove('line-through', 'opacity-50');
+                        wrap.classList.remove('bg-ghost-900/50', 'border-ghost-800');
+                    }
+                }
+            });
+            const pct = Math.round((done / SCHEDULE.length) * 100) || 0;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+        }
+
+        // Timer Logic
+        let timerInt = null;
+        let timeRem = 2.5 * 3600; 
+        let timerActive = false;
+        let isStrict = false;
+        
+        function formatTime(s) {
+            const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60); const sc = s%60;
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sc).padStart(2,'0')}`;
+        }
+
+        window.toggleTimer = function() {
+            const btn = document.getElementById('btn-timer-play');
+            
+            if(timerActive) {
+                clearInterval(timerInt);
+                timerActive = false;
+                btn.innerHTML = '<i data-lucide="play" class="w-8 h-8 ml-1"></i>';
+                btn.classList.replace('bg-yellow-500', 'bg-ghost-accent');
+                if(isStrict) document.getElementById('app-body').classList.remove('strict-mode-active');
+            } else {
+                timerActive = true;
+                btn.innerHTML = '<i data-lucide="pause" class="w-8 h-8"></i>';
+                btn.classList.replace('bg-ghost-accent', 'bg-yellow-500');
+                if(isStrict) document.getElementById('app-body').classList.add('strict-mode-active');
+                
+                timerInt = setInterval(() => {
+                    if(timeRem > 0) {
+                        timeRem--;
+                        document.getElementById('timer-display').innerText = formatTime(timeRem);
+                        const pct = (timeRem / (2.5 * 3600)) * 289;
+                        document.getElementById('timer-ring').style.strokeDashoffset = 289 - pct;
+                    } else {
+                        toggleTimer();
+                    }
+                }, 1000);
+            }
+            lucide.createIcons();
+        };
+
+        window.resetTimer = function() {
+            if(timerActive) toggleTimer();
+            timeRem = 2.5 * 3600;
+            document.getElementById('timer-display').innerText = formatTime(timeRem);
+            document.getElementById('timer-ring').style.strokeDashoffset = 0;
+        };
+
+        window.toggleStrictMode = function() {
+            isStrict = !isStrict;
+            const knob = document.getElementById('strict-knob');
+            const bg = document.getElementById('btn-strict');
+            const msg = document.getElementById('strict-overlay-msg');
+            
+            if(isStrict) {
+                knob.classList.replace('translate-x-1', 'translate-x-6');
+                bg.classList.replace('bg-ghost-700', 'bg-ghost-accent');
+                msg.classList.remove('hidden');
+                if(timerActive) document.getElementById('app-body').classList.add('strict-mode-active');
+            } else {
+                knob.classList.replace('translate-x-6', 'translate-x-1');
+                bg.classList.replace('bg-ghost-accent', 'bg-ghost-700');
+                msg.classList.add('hidden');
+                document.getElementById('app-body').classList.remove('strict-mode-active');
+            }
+        };
+
+        // Journal Logic
+        document.getElementById('journal-text').addEventListener('input', (e) => {
+            state.journal = e.target.value;
+        });
+
+        window.saveJournal = function() {
+            triggerSave();
+            const status = document.getElementById('journal-status');
+            status.classList.remove('opacity-0');
+            setTimeout(() => status.classList.add('opacity-0'), 2000);
+        };
+
+        function generateMockGitHub() {
+            const container = document.getElementById('github-mock');
+            for(let i=0; i<84; i++) {
+                const div = document.createElement('div');
+                const lvl = Math.floor(Math.random() * 5); // 0 to 4
+                div.className = `commit-box ${lvl > 0 ? 'lvl-'+lvl : ''}`;
+                container.appendChild(div);
+            }
+        }
+
+        function generateCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            const today = new Date().getDate();
+            // Simple mock for 30 days
+            for(let i=1; i<=30; i++) {
+                const div = document.createElement('div');
+                div.className = `aspect-square flex items-center justify-center rounded text-sm cursor-pointer transition-colors ${i === today ? 'bg-ghost-accent text-white font-bold' : 'hover:bg-ghost-800 text-gray-400'}`;
+                div.innerText = i;
+                grid.appendChild(div);
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('habitChart').getContext('2d');
+            Chart.defaults.color = '#71717a';
+            Chart.defaults.font.family = 'Inter';
+            
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Schedule Adherence',
+                        data: [70, 80, 90, 85, 100, 60, 95],
+                        borderColor: '#a855f7',
+                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#a855f7'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, grid: { color: '#27272a' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        window.switchView = function(viewId) {
+            document.querySelectorAll('.view-section').forEach(el => { el.classList.add('hidden'); el.classList.remove('block'); });
+            document.querySelectorAll('.nav-btn').forEach(el => {
+                el.classList.remove('active');
+                el.style.borderLeft = 'none';
+            });
+            
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+            document.getElementById(`view-${viewId}`).classList.add('block');
+            
+            const activeNav = document.getElementById(`nav-${viewId}`);
+            activeNav.classList.add('active');
+            activeNav.style.borderLeft = '3px solid #a855f7';
+
+            if(window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            }
+            
+            if(viewId === 'analytics' && chartInstance) {
+                chartInstance.resize();
+            }
+        };
+    </script>
+</body>
+</html>
